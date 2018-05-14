@@ -1,0 +1,2 @@
+
+CRIO_MINIKUBE_OPTIONS='--insecure-registry 10.96.0.0/12 '
