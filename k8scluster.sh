@@ -41,118 +41,118 @@ VBOX_MANAGE="VBoxManage"
 # fancy print
 fp() {
 
-	if [ "$2" == "info" ]; then
-		COLOR="96m"
-	elif [ "$2" == "success" ]; then
-		COLOR="92m"
-	elif [ "$2" == "warning" ]; then
-		COLOR="93m"
-	elif [ "$2" == "danger" ]; then
-		COLOR="91m"
-	else #default color
-		COLOR="0m"
-	fi
+  if [ "$2" == "info" ]; then
+    COLOR="96m"
+  elif [ "$2" == "success" ]; then
+    COLOR="92m"
+  elif [ "$2" == "warning" ]; then
+    COLOR="93m"
+  elif [ "$2" == "danger" ]; then
+    COLOR="91m"
+  else #default color
+    COLOR="0m"
+  fi
 
-	STARTCOLOR="\e[$COLOR"
-	ENDCOLOR="\e[0m"
+  STARTCOLOR="\e[$COLOR"
+  ENDCOLOR="\e[0m"
 
-	printf "$STARTCOLOR%b$ENDCOLOR\n" "$1"
+  printf "$STARTCOLOR%b$ENDCOLOR\n" "$1"
 }
 
 # https://unix.stackexchange.com/questions/412868/bash-reverse-an-array
 reverse() {
-	# first argument is the array to reverse
-	# second is the output array
-	declare -n ARR="$1" REV="$2"
-	for i in "${ARR[@]}"; do
-		REV=("$i" "${REV[@]}")
-	done
+  # first argument is the array to reverse
+  # second is the output array
+  declare -n ARR="$1" REV="$2"
+  for i in "${ARR[@]}"; do
+    REV=("$i" "${REV[@]}")
+  done
 }
 
 OPERATION=${1:-}
 NODE_NAME=${2:-}
 case $OPERATION in
-create)
-	# test/download iso and binaries
-	if [[ ! -d "$ISO_ROOT" ]]; then
-		mkdir -p "$(pwd)/iso/$ISO_VERSION"
-	fi
+  create)
+    # test/download iso and binaries
+    if [[ ! -d "$ISO_ROOT" ]]; then
+      mkdir -p "$(pwd)/iso/$ISO_VERSION"
+    fi
 
-	if [[ ! -f "$ISO_ROOT/minikube-$ISO_VERSION.iso" ]]; then
-		curl "https://storage.googleapis.com/minikube/iso/minikube-$ISO_VERSION.iso" -o "$ISO_ROOT/minikube-$ISO_VERSION.iso"
-	fi
+    if [[ ! -f "$ISO_ROOT/minikube-$ISO_VERSION.iso" ]]; then
+      curl "https://storage.googleapis.com/minikube/iso/minikube-$ISO_VERSION.iso" -o "$ISO_ROOT/minikube-$ISO_VERSION.iso"
+    fi
 
-	if [[ ! -d "$BIN_ROOT" ]]; then
-		mkdir -p "$(pwd)/binaries/$K8S_VERSION"
-	fi
+    if [[ ! -d "$BIN_ROOT" ]]; then
+      mkdir -p "$(pwd)/binaries/$K8S_VERSION"
+    fi
 
-	for BINARY in "${BINARIES[@]}"; do
-		if [[ ! -f "$BIN_ROOT/$BINARY" ]]; then
-			curl "https://storage.googleapis.com/kubernetes-release/release/$K8S_VERSION/bin/linux/amd64/$BINARY" -o "$BIN_ROOT/$BINARY"
-		fi
-	done
+    for BINARY in "${BINARIES[@]}"; do
+      if [[ ! -f "$BIN_ROOT/$BINARY" ]]; then
+        curl "https://storage.googleapis.com/kubernetes-release/release/$K8S_VERSION/bin/linux/amd64/$BINARY" -o "$BIN_ROOT/$BINARY"
+      fi
+    done
 
-	# create nodes
-	for NODE in "${NODES[@]}"; do
+    # create nodes
+    for NODE in "${NODES[@]}"; do
 
-		NODE_IP="${NODE^^}_IP"
-		NODE_IP="${!NODE_IP}"
-		NODE_IP_NAT="${NODE^^}_IP_NAT"
-		NODE_IP_NAT="${!NODE_IP_NAT}"
-		NODE_ROLE="${NODE^^}_ROLE"
-		NODE_ROLE="${!NODE_ROLE}"
+      NODE_IP="${NODE^^}_IP"
+      NODE_IP="${!NODE_IP}"
+      NODE_IP_NAT="${NODE^^}_IP_NAT"
+      NODE_IP_NAT="${!NODE_IP_NAT}"
+      NODE_ROLE="${NODE^^}_ROLE"
+      NODE_ROLE="${!NODE_ROLE}"
 
-		case $NODE_ROLE in
-		MASTER)
-			MEMORY=$MASTER_MEMORY
-			CPU=$MASTER_CPU
-			DISKSIZE=$MASTER_DISKSIZE
-			;;
-		WORKER)
-			MEMORY=$WORKER_MEMORY
-			CPU=$WORKER_CPU
-			DISKSIZE=$WORKER_DISKSIZE
-			;;
-		esac
+      case $NODE_ROLE in
+        MASTER)
+          MEMORY=$MASTER_MEMORY
+          CPU=$MASTER_CPU
+          DISKSIZE=$MASTER_DISKSIZE
+          ;;
+        WORKER)
+          MEMORY=$WORKER_MEMORY
+          CPU=$WORKER_CPU
+          DISKSIZE=$WORKER_DISKSIZE
+          ;;
+      esac
 
-		$DOCKER_MACHINE create -d "virtualbox" \
-			--virtualbox-boot2docker-url "file:/$ISO_ROOT/minikube-$ISO_VERSION.iso" \
-			--virtualbox-cpu-count "$CPU" \
-			--virtualbox-memory "$MEMORY" \
-			--virtualbox-disk-size "$DISKSIZE" \
-			--virtualbox-hostonly-nictype "virtio" \
-			--virtualbox-nat-nictype "virtio" \
-			"$NODE" || :
+      $DOCKER_MACHINE create -d "virtualbox" \
+        --virtualbox-boot2docker-url "file:/$ISO_ROOT/minikube-$ISO_VERSION.iso" \
+        --virtualbox-cpu-count "$CPU" \
+        --virtualbox-memory "$MEMORY" \
+        --virtualbox-disk-size "$DISKSIZE" \
+        --virtualbox-hostonly-nictype "virtio" \
+        --virtualbox-nat-nictype "virtio" \
+        "$NODE" || :
 
-		NODE_SSHKEY=$($DOCKER_MACHINE inspect "$NODE" -f '{{.Driver.SSHKeyPath}}')
+      NODE_SSHKEY=$($DOCKER_MACHINE inspect "$NODE" -f '{{.Driver.SSHKeyPath}}')
 
-		case $OSTYPE in
-		msys*)
-			NODE_SSHKEY=$(echo "/$NODE_SSHKEY" | sed 's/\\/\//g' | sed 's/://')
-			;;
-		*) ;;
+      case $OSTYPE in
+        msys*)
+          NODE_SSHKEY=$(echo "/$NODE_SSHKEY" | sed 's/\\/\//g' | sed 's/://')
+          ;;
+        *) ;;
 
-		esac
+      esac
 
-		DHCP_IP=$($DOCKER_MACHINE ip "$NODE")
-		SSH_COMMAND="$SSH_OPTIONS $NODE_SSHKEY"
-		SCP_COMMAND="$SCP_OPTIONS $NODE_SSHKEY"
+      DHCP_IP=$($DOCKER_MACHINE ip "$NODE")
+      SSH_COMMAND="$SSH_OPTIONS $NODE_SSHKEY"
+      SCP_COMMAND="$SCP_OPTIONS $NODE_SSHKEY"
 
-		# set natnetwork on internal network if
-		$VBOX_MANAGE controlvm "$NODE" nic1 natnetwork "NatNetwork"
-		# set portwarding
-		# $VBOX_MANAGE natnetwork modify --netname "NatNetwork" --port-forward-4 "master:tcp:[]:10050:[${NODE_IP_NAT}]:22"
+      # set natnetwork on internal network if
+      $VBOX_MANAGE controlvm "$NODE" nic1 natnetwork "NatNetwork"
+      # set portwarding
+      # $VBOX_MANAGE natnetwork modify --netname "NatNetwork" --port-forward-4 "master:tcp:[]:10050:[${NODE_IP_NAT}]:22"
 
-		while true; do
-			MOUNT_RDY=$($SSH_COMMAND "$DHCP_IP" "mount -l | grep boot2docker" || :)
-			if [[ ! -z $MOUNT_RDY ]]; then
-				break
-			fi
-			sleep 5
-		done
+      while true; do
+        MOUNT_RDY=$($SSH_COMMAND "$DHCP_IP" "mount -l | grep boot2docker" || :)
+        if [[ ! -z $MOUNT_RDY ]]; then
+          break
+        fi
+        sleep 5
+      done
 
-		# create directory structure
-		$SSH_COMMAND "$DHCP_IP" "sudo mkdir -p $B2D_DIR/etc/systemd/system && \
+      # create directory structure
+      $SSH_COMMAND "$DHCP_IP" "sudo mkdir -p $B2D_DIR/etc/systemd/system && \
                 sudo chown docker:docker $B2D_DIR/etc/systemd/system && \
                 sudo mkdir -p $B2D_DIR/etc/systemd/system/kubelet.service.d && \
                 sudo chown docker:docker $B2D_DIR/etc/systemd/system/kubelet.service.d && \
@@ -163,23 +163,23 @@ create)
                 sudo mkdir -p $B2D_DIR/usr/bin && \
                 sudo chown docker:docker $B2D_DIR/usr/bin && \
                 sudo mkdir -p $B2D_DIR/etc/kubernetes"
-		# move certificate
-		# ca created with:
-		# easypki.exe --root PKI create --filename docker_ca --ca "Shinzu Org Certificate Authority"
-		# certs created with:
-		# easypki.exe --root PKI create --ca-name docker_ca --dns master --ip 127.0.0.1 --ip 192.168.99.50 master
-		$SCP_COMMAND "$PKI_ROOT/certs/$NODE.crt" "$SSH_USER@$DHCP_IP:$B2D_DIR/etc/docker/server.pem"
-		$SCP_COMMAND "$PKI_ROOT/certs/docker_ca.crt" "$SSH_USER@$DHCP_IP:$B2D_DIR/etc/docker/ca.pem"
-		$SCP_COMMAND "$PKI_ROOT/keys/$NODE.key" "$SSH_USER@$DHCP_IP:$B2D_DIR/etc/docker/server-key.pem"
-		# move/create servie/binary files and bootlocal
-		$SCP_COMMAND "$FILE_ROOT/kubelet.service" "$SSH_USER@$DHCP_IP:$B2D_DIR/etc/systemd/system"
-		$SCP_COMMAND "$FILE_ROOT/docker.service" "$SSH_USER@$DHCP_IP:$B2D_DIR/etc/systemd/system"
-		$SCP_COMMAND "$FILE_ROOT/crio.minikube" "$SSH_USER@$DHCP_IP:$B2D_DIR/etc/sysconfig"
-		$SCP_COMMAND "$BIN_ROOT/kubelet" "$SSH_USER@$DHCP_IP:$B2D_DIR/usr/bin"
-		$SCP_COMMAND "$BIN_ROOT/kubeadm" "$SSH_USER@$DHCP_IP:$B2D_DIR/usr/bin"
+      # move certificate
+      # ca created with:
+      # easypki.exe --root PKI create --filename docker_ca --ca "Shinzu Org Certificate Authority"
+      # certs created with:
+      # easypki.exe --root PKI create --ca-name docker_ca --dns master --ip 127.0.0.1 --ip 192.168.99.50 master
+      $SCP_COMMAND "$PKI_ROOT/certs/$NODE.crt" "$SSH_USER@$DHCP_IP:$B2D_DIR/etc/docker/server.pem"
+      $SCP_COMMAND "$PKI_ROOT/certs/docker_ca.crt" "$SSH_USER@$DHCP_IP:$B2D_DIR/etc/docker/ca.pem"
+      $SCP_COMMAND "$PKI_ROOT/keys/$NODE.key" "$SSH_USER@$DHCP_IP:$B2D_DIR/etc/docker/server-key.pem"
+      # move/create servie/binary files and bootlocal
+      $SCP_COMMAND "$FILE_ROOT/kubelet.service" "$SSH_USER@$DHCP_IP:$B2D_DIR/etc/systemd/system"
+      $SCP_COMMAND "$FILE_ROOT/docker.service" "$SSH_USER@$DHCP_IP:$B2D_DIR/etc/systemd/system"
+      $SCP_COMMAND "$FILE_ROOT/crio.minikube" "$SSH_USER@$DHCP_IP:$B2D_DIR/etc/sysconfig"
+      $SCP_COMMAND "$BIN_ROOT/kubelet" "$SSH_USER@$DHCP_IP:$B2D_DIR/usr/bin"
+      $SCP_COMMAND "$BIN_ROOT/kubeadm" "$SSH_USER@$DHCP_IP:$B2D_DIR/usr/bin"
 
-		if [ "$NODE_ROLE" == "MASTER" ]; then
-			cat <<EOF | $SSH_COMMAND "$DHCP_IP" "sudo tee $B2D_DIR/etc/systemd/system/kubelet.service.d/10-kubeadm.conf >/dev/null"
+      if [ "$NODE_ROLE" == "MASTER" ]; then
+        cat <<EOF | $SSH_COMMAND "$DHCP_IP" "sudo tee $B2D_DIR/etc/systemd/system/kubelet.service.d/10-kubeadm.conf >/dev/null"
 [Service]
 ExecStart=
 ExecStart=/usr/bin/kubelet --client-ca-file=/var/lib/localkube/certs/ca.crt \
@@ -200,8 +200,8 @@ ExecStart=/usr/bin/kubelet --client-ca-file=/var/lib/localkube/certs/ca.crt \
 [Install]
 Wants=docker.socket
 EOF
-		else
-			cat <<EOF | $SSH_COMMAND "$DHCP_IP" "sudo tee $B2D_DIR/etc/systemd/system/kubelet.service.d/10-kubeadm.conf >/dev/null"
+      else
+        cat <<EOF | $SSH_COMMAND "$DHCP_IP" "sudo tee $B2D_DIR/etc/systemd/system/kubelet.service.d/10-kubeadm.conf >/dev/null"
 [Service]
 ExecStart=
 ExecStart=/usr/bin/kubelet --cgroup-driver=cgroupfs \
@@ -221,9 +221,9 @@ ExecStart=/usr/bin/kubelet --cgroup-driver=cgroupfs \
 [Install]
 Wants=docker.socket
 EOF
-		fi
+      fi
 
-		cat <<EOF | $SSH_COMMAND "$DHCP_IP" "sudo tee -a $B2D_DIR/bootlocal.sh >/dev/null && sudo chmod u+x $B2D_DIR/bootlocal.sh && sudo $B2D_DIR/bootlocal.sh" || :
+      cat <<EOF | $SSH_COMMAND "$DHCP_IP" "sudo tee -a $B2D_DIR/bootlocal.sh >/dev/null && sudo chmod u+x $B2D_DIR/bootlocal.sh && sudo $B2D_DIR/bootlocal.sh" || :
 #!/bin/sh
 
 # Stop the DHCP service for our host-only inteface
@@ -289,16 +289,16 @@ systemctl enable kubelet.service
 (sleep 10; systemctl restart crio.service ; systemctl start docker.service ; systemctl start kubelet.service) &
 EOF
 
-		# write kubeadm conf on master
-		if [ "$NODE_ROLE" == "MASTER" ]; then
-			while true; do
-				fp "Trying connection to new static ip" "info"
-				if $SSH_COMMAND "$NODE_IP" "exit"; then
-					break
-				fi
-				sleep 1
-			done
-			cat <<EOF | $SSH_COMMAND "$NODE_IP" "sudo tee -a /var/lib/kubeadm.yaml >/dev/null"
+      # write kubeadm conf on master
+      if [ "$NODE_ROLE" == "MASTER" ]; then
+        while true; do
+          fp "Trying connection to new static ip" "info"
+          if $SSH_COMMAND "$NODE_IP" "exit"; then
+            break
+          fi
+          sleep 1
+        done
+        cat <<EOF | $SSH_COMMAND "$NODE_IP" "sudo tee -a /var/lib/kubeadm.yaml >/dev/null"
 apiVersion: kubeadm.k8s.io/v1alpha1
 kind: MasterConfiguration
 api:
@@ -332,8 +332,8 @@ apiServerCertSANs:
 - "127.0.0.1"
 EOF
 
-			# bootstrap k8s with kubeadm
-			$SSH_COMMAND "$NODE_IP" "sudo /usr/bin/kubeadm init --config /var/lib/kubeadm.yaml \
+        # bootstrap k8s with kubeadm
+        $SSH_COMMAND "$NODE_IP" "sudo /usr/bin/kubeadm init --config /var/lib/kubeadm.yaml \
                     --ignore-preflight-errors=DirAvailable--etc-kubernetes-manifests \
                     --ignore-preflight-errors=DirAvailable--data \
                     --ignore-preflight-errors=FileAvailable--etc-kubernetes-manifests-kube-scheduler.yaml \
@@ -343,62 +343,62 @@ EOF
                     --ignore-preflight-errors=Swap \
                     --ignore-preflight-errors=CRI"
 
-			$SSH_COMMAND "$NODE_IP" "sudo cat /etc/kubernetes/admin.conf" >$HOME_DIR/.kube/config
-			$SSH_COMMAND "$NODE_IP" "sudo rsync -av -q /etc/kubernetes/ $B2D_DIR/etc/kubernetes/"
-		else
-			fp "You must join this Worker Node with the command provided with the Outout of kubeadm from the master node" "warning"
-		fi
-	done
-	;;
-start)
-	if [ "$NODE_NAME" == "" ]; then
-		fp "Starting Cluster" "info"
-		for NODE in "${NODES[@]}"; do
-			fp "Starting now Node $NODE" "info"
-			$DOCKER_MACHINE start "$NODE" || :
-			$VBOX_MANAGE controlvm "$NODE" nic1 natnetwork "NatNetwork"
-		done
-	else
-		if [[ ! " ${NODES[*]} " =~ ${NODE_NAME} ]]; then
-			fp "Hmm i dont know this Node" "danger"
-			exit 1
-		else
-			fp "Start Cluster Node $NODE_NAME" "info"
-			$DOCKER_MACHINE start "$NODE_NAME" || :
-			$VBOX_MANAGE controlvm "$NODE_NAME" nic1 natnetwork "NatNetwork"
-		fi
-	fi
-	;;
-stop)
-	if [ "$NODE_NAME" == "" ]; then
-		fp "Stopping Cluster" "info"
-		reverse NODES REV_NODES
-		for NODE in "${REV_NODES[@]}"; do
-			fp "Stopping now Node $NODE" "info"
-			$VBOX_MANAGE controlvm "$NODE" nic1 nat
-			$DOCKER_MACHINE stop "$NODE" || :
-		done
-	else
-		if [[ ! " ${NODES[*]} " =~ ${NODE_NAME} ]]; then
-			fp "Hmm i dont know this Node" "danger"
-			exit 1
-		else
-			fp "Stop Cluster Node $NODE_NAME" "info"
-			$VBOX_MANAGE controlvm "$NODE_NAME" nic1 nat
-			$DOCKER_MACHINE stop "$NODE_NAME" || :
-		fi
-	fi
-	;;
-*)
-	fp "Usage: $(basename "${BASH_SOURCE[0]}") <command> args..." "info"
-	fp "" ""
-	fp "Commands:" "warning"
-	fp "    create                         Create cluster with given nodes in Variables section of this script" "info"
-	fp "" "info"
-	fp "    start                          Start already created cluster" "info"
-	fp "                                   (in the given order of the Variable NODES)" "info"
-	fp "" ""
-	fp "    stop                           Stops the cluster" "info"
-	fp "                                   (in the reverse order of the Variable NODES)" "info"
-	;;
+        $SSH_COMMAND "$NODE_IP" "sudo cat /etc/kubernetes/admin.conf" >$HOME_DIR/.kube/config
+        $SSH_COMMAND "$NODE_IP" "sudo rsync -av -q /etc/kubernetes/ $B2D_DIR/etc/kubernetes/"
+      else
+        fp "You must join this Worker Node with the command provided with the Outout of kubeadm from the master node" "warning"
+      fi
+    done
+    ;;
+  start)
+    if [ "$NODE_NAME" == "" ]; then
+      fp "Starting Cluster" "info"
+      for NODE in "${NODES[@]}"; do
+        fp "Starting now Node $NODE" "info"
+        $DOCKER_MACHINE start "$NODE" || :
+        $VBOX_MANAGE controlvm "$NODE" nic1 natnetwork "NatNetwork"
+      done
+    else
+      if [[ ! " ${NODES[*]} " =~ ${NODE_NAME} ]]; then
+        fp "Hmm i dont know this Node" "danger"
+        exit 1
+      else
+        fp "Start Cluster Node $NODE_NAME" "info"
+        $DOCKER_MACHINE start "$NODE_NAME" || :
+        $VBOX_MANAGE controlvm "$NODE_NAME" nic1 natnetwork "NatNetwork"
+      fi
+    fi
+    ;;
+  stop)
+    if [ "$NODE_NAME" == "" ]; then
+      fp "Stopping Cluster" "info"
+      reverse NODES REV_NODES
+      for NODE in "${REV_NODES[@]}"; do
+        fp "Stopping now Node $NODE" "info"
+        $VBOX_MANAGE controlvm "$NODE" nic1 nat
+        $DOCKER_MACHINE stop "$NODE" || :
+      done
+    else
+      if [[ ! " ${NODES[*]} " =~ ${NODE_NAME} ]]; then
+        fp "Hmm i dont know this Node" "danger"
+        exit 1
+      else
+        fp "Stop Cluster Node $NODE_NAME" "info"
+        $VBOX_MANAGE controlvm "$NODE_NAME" nic1 nat
+        $DOCKER_MACHINE stop "$NODE_NAME" || :
+      fi
+    fi
+    ;;
+  *)
+    fp "Usage: $(basename "${BASH_SOURCE[0]}") <command> args..." "info"
+    fp "" ""
+    fp "Commands:" "warning"
+    fp "    create                         Create cluster with given nodes in Variables section of this script" "info"
+    fp "" "info"
+    fp "    start                          Start already created cluster" "info"
+    fp "                                   (in the given order of the Variable NODES)" "info"
+    fp "" ""
+    fp "    stop                           Stops the cluster" "info"
+    fp "                                   (in the reverse order of the Variable NODES)" "info"
+    ;;
 esac
