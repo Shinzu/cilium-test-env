@@ -25,8 +25,8 @@ GATEWAY_NAT="10.0.2.1"
 BROADCAST="192.168.99.255"
 BROADCAST_NAT="10.0.2.255"
 SSH_USER="docker"
-SSH_COMMAND="ssh -o LogLevel=error -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -l docker -i"
-SCP_COMMAND="scp -o LogLevel=error -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i"
+SSH_OPTIONS="ssh -o LogLevel=error -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -l docker -i"
+SCP_OPTIONS="scp -o LogLevel=error -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i"
 HOME_DIR="/C/Users/shinz"
 FILE_ROOT="$(pwd)/static_files"
 ISO_ROOT="$(pwd)/iso/$ISO_VERSION"
@@ -136,8 +136,8 @@ create)
         esac
 
 		DHCP_IP=$($DOCKER_MACHINE ip "$NODE")
-        SSH_COMMAND="$SSH_COMMAND $NODE_SSHKEY"
-        SCP_COMMAND="$SCP_COMMAND $NODE_SSHKEY"
+        SSH_COMMAND="$SSH_OPTIONS $NODE_SSHKEY"
+        SCP_COMMAND="$SCP_OPTIONS $NODE_SSHKEY"
 
 		# set natnetwork on internal network if
 		$VBOX_MANAGE controlvm "$NODE" nic1 natnetwork "NatNetwork"
@@ -179,7 +179,8 @@ create)
 		$SCP_COMMAND "$BIN_ROOT/kubelet" "$SSH_USER@$DHCP_IP:$B2D_DIR/usr/bin"
 		$SCP_COMMAND "$BIN_ROOT/kubeadm" "$SSH_USER@$DHCP_IP:$B2D_DIR/usr/bin"
 
-        cat <<EOF | $SSH_COMMAND "$DHCP_IP" "sudo tee $B2D_DIR/etc/systemd/system/kubelet.service.d/10-kubeadm.conf >/dev/null"
+		if [ "$NODE_ROLE" == "MASTER" ]; then
+            cat <<EOF | $SSH_COMMAND "$DHCP_IP" "sudo tee $B2D_DIR/etc/systemd/system/kubelet.service.d/10-kubeadm.conf >/dev/null"
 [Service]
 ExecStart=
 ExecStart=/usr/bin/kubelet --client-ca-file=/var/lib/localkube/certs/ca.crt \
@@ -200,6 +201,28 @@ ExecStart=/usr/bin/kubelet --client-ca-file=/var/lib/localkube/certs/ca.crt \
 [Install]
 Wants=docker.socket
 EOF
+        else
+            cat <<EOF | $SSH_COMMAND "$DHCP_IP" "sudo tee $B2D_DIR/etc/systemd/system/kubelet.service.d/10-kubeadm.conf >/dev/null"
+[Service]
+ExecStart=
+ExecStart=/usr/bin/kubelet --cgroup-driver=cgroupfs \
+    --hostname-override=$NODE \
+    --allow-privileged=true\
+    --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf \
+    --pod-manifest-path=/etc/kubernetes/manifests \
+    --cluster-dns=10.96.0.10 \
+    --cluster-domain=cluster.local \
+    --authorization-mode=Webhook \
+    --cadvisor-port=0 \
+    --fail-swap-on=false \
+    --kubeconfig=/etc/kubernetes/kubelet.conf \
+    --network-plugin=cni \
+    --feature-gates=CustomResourceValidation=true
+
+[Install]
+Wants=docker.socket
+EOF
+        fi
 
         cat <<EOF | $SSH_COMMAND "$DHCP_IP" "sudo tee -a $B2D_DIR/bootlocal.sh >/dev/null && sudo chmod u+x $B2D_DIR/bootlocal.sh && sudo $B2D_DIR/bootlocal.sh" || :
 #!/bin/sh
@@ -306,8 +329,8 @@ controllerManagerExtraArgs:
 schedulerExtraArgs:
   feature-gates: "CustomResourceValidation=true"
 apiServerCertSANs:
-- "$NODE_IP_NAT"
 - "$NODE_IP"
+- "127.0.0.1"
 EOF
 
 			# bootstrap k8s with kubeadm
@@ -353,8 +376,8 @@ stop)
         reverse NODES REV_NODES ;
         for NODE in "${REV_NODES[@]}"; do
             fp "Stopping now Node $NODE" "info";
-            $VBOX_MANAGE controlvm "$NODE_NAME" nic1 nat
-            $DOCKER_MACHINE stop "$NODE_NAME" || :
+            $VBOX_MANAGE controlvm "$NODE" nic1 nat
+            $DOCKER_MACHINE stop "$NODE" || :
         done
     else
         if [[ ! " ${NODES[*]} " =~ ${NODE_NAME} ]]; then
