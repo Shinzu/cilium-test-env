@@ -179,7 +179,7 @@ create)
 		$SCP_COMMAND "$BIN_ROOT/kubelet" "$SSH_USER@$DHCP_IP:$B2D_DIR/usr/bin"
 		$SCP_COMMAND "$BIN_ROOT/kubeadm" "$SSH_USER@$DHCP_IP:$B2D_DIR/usr/bin"
 
-		if [ "$NODE_ROLE" == "MASTER" ]; then
+        if [ "$NODE_ROLE" == "MASTER" ]; then
             cat <<EOF | $SSH_COMMAND "$DHCP_IP" "sudo tee $B2D_DIR/etc/systemd/system/kubelet.service.d/10-kubeadm.conf >/dev/null"
 [Service]
 ExecStart=
