@@ -1,0 +1,5 @@
+export PKI_ORGANIZATION="Shinzu Org"
+export PKI_ORGANIZATIONAL_UNIT="IT"
+export PKI_COUNTRY="DE"
+export PKI_LOCALITY="Qunicha"
+export PKI_PROVINCE="Berlin"
