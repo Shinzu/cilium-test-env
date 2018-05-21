@@ -35,7 +35,8 @@ BINARIES=("kubeadm" "kubelet")
 PKI_ROOT="$(pwd)/PKI/docker_ca"
 B2D_DIR="/var/lib/boot2docker"
 DOCKER_MACHINE="docker-machine"
-VBOX_MANAGE="VBoxManage"
+#VBOX_MANAGE="VBoxManage"
+KUBECTL="kubectl"
 
 # prints colored text https://stackoverflow.com/questions/5412761/using-colors-with-printf
 # fancy print
@@ -115,13 +116,20 @@ case $OPERATION in
           ;;
       esac
 
-      $DOCKER_MACHINE create -d "virtualbox" \
-        --virtualbox-boot2docker-url "file:/$ISO_ROOT/minikube-$ISO_VERSION.iso" \
-        --virtualbox-cpu-count "$CPU" \
-        --virtualbox-memory "$MEMORY" \
-        --virtualbox-disk-size "$DISKSIZE" \
-        --virtualbox-hostonly-nictype "virtio" \
-        --virtualbox-nat-nictype "virtio" \
+      #$DOCKER_MACHINE create -d "virtualbox" \
+      #  --virtualbox-boot2docker-url "file:/$ISO_ROOT/minikube-$ISO_VERSION.iso" \
+      #  --virtualbox-cpu-count "$CPU" \
+      #  --virtualbox-memory "$MEMORY" \
+      #  --virtualbox-disk-size "$DISKSIZE" \
+      #  --virtualbox-hostonly-nictype "virtio" \
+      #  --virtualbox-nat-nictype "virtio" \
+      #  "$NODE" || :
+      $DOCKER_MACHINE create -d "vmware" \
+        --vmware-boot2docker-url "file:/$ISO_ROOT/minikube-$ISO_VERSION.iso" \
+        --vmware-cpu-count "$CPU" \
+        --vmware-memory-size "$MEMORY" \
+        --vmware-disk-size "$DISKSIZE" \
+        --vmware-no-share \
         "$NODE" || :
 
       NODE_SSHKEY=$($DOCKER_MACHINE inspect "$NODE" -f '{{.Driver.SSHKeyPath}}')
@@ -139,9 +147,11 @@ case $OPERATION in
       SCP_COMMAND="$SCP_OPTIONS $NODE_SSHKEY"
 
       # set natnetwork on internal network if
-      $VBOX_MANAGE controlvm "$NODE" nic1 natnetwork "NatNetwork"
+      #$VBOX_MANAGE controlvm "$NODE" nic1 natnetwork "NatNetwork"
       # set portwarding
       # $VBOX_MANAGE natnetwork modify --netname "NatNetwork" --port-forward-4 "master:tcp:[]:10050:[${NODE_IP_NAT}]:22"
+      # start natnetwork
+      # VBoxManage.exe natnetwork start --netname NatNetwork
 
       while true; do
         MOUNT_RDY=$($SSH_COMMAND "$DHCP_IP" "mount -l | grep boot2docker" || :)
@@ -356,7 +366,7 @@ EOF
       for NODE in "${NODES[@]}"; do
         fp "Starting now Node $NODE" "info"
         $DOCKER_MACHINE start "$NODE" || :
-        $VBOX_MANAGE controlvm "$NODE" nic1 natnetwork "NatNetwork"
+        #$VBOX_MANAGE controlvm "$NODE" nic1 natnetwork "NatNetwork"
       done
     else
       if [[ ! " ${NODES[*]} " =~ ${NODE_NAME} ]]; then
@@ -365,7 +375,7 @@ EOF
       else
         fp "Start Cluster Node $NODE_NAME" "info"
         $DOCKER_MACHINE start "$NODE_NAME" || :
-        $VBOX_MANAGE controlvm "$NODE_NAME" nic1 natnetwork "NatNetwork"
+        #$VBOX_MANAGE controlvm "$NODE_NAME" nic1 natnetwork "NatNetwork"
       fi
     fi
     ;;
@@ -375,7 +385,7 @@ EOF
       reverse NODES REV_NODES
       for NODE in "${REV_NODES[@]}"; do
         fp "Stopping now Node $NODE" "info"
-        $VBOX_MANAGE controlvm "$NODE" nic1 nat
+        #$VBOX_MANAGE controlvm "$NODE" nic1 nat
         $DOCKER_MACHINE stop "$NODE" || :
       done
     else
@@ -384,7 +394,7 @@ EOF
         exit 1
       else
         fp "Stop Cluster Node $NODE_NAME" "info"
-        $VBOX_MANAGE controlvm "$NODE_NAME" nic1 nat
+        #$VBOX_MANAGE controlvm "$NODE_NAME" nic1 nat
         $DOCKER_MACHINE stop "$NODE_NAME" || :
       fi
     fi
