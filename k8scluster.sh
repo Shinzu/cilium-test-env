@@ -294,6 +294,7 @@ ln -s $B2D_DIR/etc/sysconfig/crio.minikube /etc/sysconfig/crio.minikube
 ln -s $B2D_DIR/etc/systemd/system/kubelet.service.d /etc/systemd/system/kubelet.service.d
 ln -s $B2D_DIR/etc/systemd/system/kubelet.service /etc/systemd/system/kubelet.service
 ln -s $B2D_DIR/etc/systemd/system/docker.service /etc/systemd/system/docker.service
+ln -s $B2D_DIR/etc/kubernetes /etc/kubernetes
 chmod +x $B2D_DIR/usr/bin/kubelet
 chmod +x $B2D_DIR/usr/bin/kubeadm
 ln -s $B2D_DIR/usr/bin/kubelet /usr/bin/kubelet
