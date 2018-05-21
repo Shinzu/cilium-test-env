@@ -323,7 +323,7 @@ EOF
           fi
           sleep 1
         done
-        cat <<EOF | $SSH_COMMAND "$NODE_IP" "sudo tee -a /var/lib/kubeadm.yaml >/dev/null"
+        cat <<EOF | $SSH_COMMAND "$NODE_IP" "sudo tee /var/lib/kubeadm.yaml >/dev/null"
 apiVersion: kubeadm.k8s.io/v1alpha1
 kind: MasterConfiguration
 api:
