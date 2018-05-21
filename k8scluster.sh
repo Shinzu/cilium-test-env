@@ -237,28 +237,47 @@ EOF
 #!/bin/sh
 
 # Stop the DHCP service for our host-only inteface
-[[ -f /var/run/udhcpc.eth1.pid ]] && kill \$(cat /var/run/udhcpc.eth1.pid) 2>/dev/null || :
+#[[ -f /var/run/udhcpc.eth1.pid ]] && kill \$(cat /var/run/udhcpc.eth1.pid) 2>/dev/null || :
 
 # Configure the interface to use the assigned IP address as a static address
-ifconfig eth1 $NODE_IP netmask 255.255.255.0 broadcast $BROADCAST up
+ip addr flush dev eth1
+#ifconfig eth1 $NODE_IP netmask 255.255.255.0 broadcast $BROADCAST up
 
 # kill dhcp on eth0
-[[ -f /var/run/udhcpc.eth0.pid ]] && kill \$(cat /var/run/udhcpc.eth0.pid) 2>/dev/null || :
+#[[ -f /var/run/udhcpc.eth0.pid ]] && kill \$(cat /var/run/udhcpc.eth0.pid) 2>/dev/null || :
 
 # wait until natnetwork is up
-while true; do
-    GW=\$(ip r | grep default | awk '{print \$3}')
-    if [ \$GW = "10.0.2.1" ]; then
-        break
-    fi
-    sleep 1
-done
+#while true; do
+#    if ip a | grep -Eq ': eth0:.*state UP' ; then
+#        break
+#    fi
+#    sleep 1
+#done
 
 # set ip eth0
-ifconfig eth0 $NODE_IP_NAT netmask 255.255.255.0 broadcast $BROADCAST_NAT up
+ip addr flush dev eth0
+#ifconfig eth0 $NODE_IP_NAT netmask 255.255.255.0 broadcast $BROADCAST_NAT up
 
 # clean/add routes
-ip route add default via $GATEWAY_NAT
+#ip route add default via $GATEWAY_NAT
+
+echo '
+[Match]
+Name=eth0
+
+[Network]
+DNS=$GATEWAY_NAT
+Address=$NODE_IP_NAT/24
+Gateway=$GATEWAY_NAT
+' > /etc/systemd/network/10-eth0.network
+
+echo '
+[Match]
+Name=eth1
+
+[Network]
+Address=$NODE_IP/24
+' > /etc/systemd/network/10-eth1.network
 
 # set hostname
 /bin/hostname $NODE
@@ -287,16 +306,11 @@ mount --bind /mnt/sda1/var/lib/crio /var/lib/crio
 # mount bpffs
 mount bpffs /sys/fs/bpf -t bpf
 
-# sync kubernetes directory if node was already provisioned
-if [ -f $B2D_DIR/etc/kubernetes/admin.conf ]; then
-    ln -s $B2D_DIR/etc/kubernetes /etc/kubernetes
-fi
-
 # reload/start services
 systemctl daemon-reload
 systemctl enable docker.service
 systemctl enable kubelet.service
-(sleep 10; systemctl restart crio.service ; systemctl start docker.service ; systemctl start kubelet.service) &
+(sleep 10 ; systemctl restart systemd-networkd ; systemctl restart crio.service ; systemctl start docker.service ; systemctl start kubelet.service) &
 EOF
 
       # write kubeadm conf on master
