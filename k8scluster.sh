@@ -200,7 +200,6 @@ ExecStart=/usr/bin/kubelet --client-ca-file=/var/lib/localkube/certs/ca.crt \
     --pod-manifest-path=/etc/kubernetes/manifests \
     --cluster-dns=10.96.0.10 \
     --cluster-domain=cluster.local \
-    --authorization-mode=Webhook \
     --cadvisor-port=0 \
     --fail-swap-on=false \
     --kubeconfig=/etc/kubernetes/kubelet.conf \
@@ -214,19 +213,20 @@ EOF
         cat <<EOF | $SSH_COMMAND "$DHCP_IP" "sudo tee $B2D_DIR/etc/systemd/system/kubelet.service.d/10-kubeadm.conf >/dev/null"
 [Service]
 ExecStart=
-ExecStart=/usr/bin/kubelet --cgroup-driver=cgroupfs \
+ExecStart=/usr/bin/kubelet --client-ca-file=/etc/kubernetes/pki/ca.crt \
+    --cgroup-driver=cgroupfs \
     --hostname-override=$NODE \
     --allow-privileged=true\
     --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf \
     --pod-manifest-path=/etc/kubernetes/manifests \
     --cluster-dns=10.96.0.10 \
     --cluster-domain=cluster.local \
-    --authorization-mode=Webhook \
     --cadvisor-port=0 \
     --fail-swap-on=false \
     --kubeconfig=/etc/kubernetes/kubelet.conf \
     --network-plugin=cni \
-    --feature-gates=CustomResourceValidation=true
+    --feature-gates=CustomResourceValidation=true \
+    --node-labels 'node-role.kubernetes.io/node='
 
 [Install]
 Wants=docker.socket
@@ -329,7 +329,6 @@ etcd:
 nodeName: $NODE
 apiServerExtraArgs:
   admission-control: "Initializers,NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultStorageClass,DefaultTolerationSeconds,NodeRestriction,MutatingAdmissionWebhook,ValidatingAdmissionWebhook,ResourceQuota"
-  authorization-mode: "RBAC"
   feature-gates: "CustomResourceValidation=true"
 controllerManagerExtraArgs:
   allocate-node-cidrs: "true"
