@@ -365,14 +365,61 @@ EOF
                     --ignore-preflight-errors=FileAvailable--etc-kubernetes-manifests-kube-controller-manager.yaml \
                     --ignore-preflight-errors=FileAvailable--etc-kubernetes-manifests-etcd.yaml \
                     --ignore-preflight-errors=Swap \
-                    --ignore-preflight-errors=CRI"
+                    --ignore-preflight-errors=CRI" | tee "$(pwd)"/kubeadm.log
 
         $SSH_COMMAND "$NODE_IP" "sudo cat /etc/kubernetes/admin.conf" >$HOME_DIR/.kube/config
-        $SSH_COMMAND "$NODE_IP" "sudo rsync -av -q /etc/kubernetes/ $B2D_DIR/etc/kubernetes/"
+        sed -i "s/$NODE_IP_NAT:8443/127.0.0.1:18443/" $HOME_DIR/.kube/config
+        ETCD_CLIENT_CRT=$($SSH_COMMAND "$NODE_IP" "sudo cat /var/lib/localkube/certs/apiserver-etcd-client.crt" | base64 -w0)
+        ETCD_CLIENT_KEY=$($SSH_COMMAND "$NODE_IP" "sudo cat /var/lib/localkube/certs/apiserver-etcd-client.key" | base64 -w0)
+        ETCD_CA=$($SSH_COMMAND "$NODE_IP" "sudo cat /var/lib/localkube/certs/etcd/ca.crt" | base64 -w0)
       else
-        fp "You must join this Worker Node with the command provided with the Outout of kubeadm from the master node" "warning"
+        #fp "You must join this Worker Node with the command provided with the Outout of kubeadm from the master node" "warning"
+        KUBEADM_JOIN=$(grep "kubeadm join" "$(pwd)"/kubeadm.log | sed -e 's/^[[:space:]]*//')
+        fp "Joining cluster" "info";
+        $SSH_COMMAND "$NODE_IP" "sudo $KUBEADM_JOIN \
+                    --ignore-preflight-errors=DirAvailable--etc-kubernetes-manifests \
+                    --ignore-preflight-errors=DirAvailable--data \
+                    --ignore-preflight-errors=FileAvailable--etc-kubernetes-manifests-kube-scheduler.yaml \
+                    --ignore-preflight-errors=FileAvailable--etc-kubernetes-manifests-kube-apiserver.yaml \
+                    --ignore-preflight-errors=FileAvailable--etc-kubernetes-manifests-kube-controller-manager.yaml \
+                    --ignore-preflight-errors=FileAvailable--etc-kubernetes-manifests-etcd.yaml \
+                    --ignore-preflight-errors=Swap \
+                    --ignore-preflight-errors=CRI"
       fi
     done
+
+    fp "Waiting a moment to pull all images" "info";
+    sleep 30
+
+    fp "Deploy cilium" "info";
+    $KUBECTL apply -f "$(pwd)/cilium-rbac.yaml"
+    sleep 3
+    SECRET=$($KUBECTL get sa cilium -n kube-system -o json | jq '.secrets[].name' | tr -d '"|\r' | while read -r TOKEN_NAME ; do $KUBECTL -n kube-system get secrets "$TOKEN_NAME" -o json ; done)
+    TOKEN=$(jq -j -r -n --argjson secret "$SECRET" '$secret.data.token' | base64 -d)
+    CA_CERT=$(jq -j -r -n --argjson secret "$SECRET" '$secret.data."ca.crt"')
+    sed -ri 's/^(\s*)(certificate-authority-data:\s.*\s*$)/\1certificate-authority-data: '"$CA_CERT"'/' "$(pwd)/cilium.conf"
+    sed -ri 's/^(\s*)(token:\s.*\s*$)/\1token: '"$TOKEN"'/' "$(pwd)/cilium.conf"
+    sed -ri 's/^(\s*)(etcd-ca:\s.*\s*$)/\1etcd-ca: '"$ETCD_CA"'/' "$(pwd)/cilium.yaml"
+    sed -ri 's/^(\s*)(etcd-client-key:\s.*\s*$)/\1etcd-client-key: '"$ETCD_CLIENT_KEY"'/' "$(pwd)/cilium.yaml"
+    sed -ri 's/^(\s*)(etcd-client-crt:\s.*\s*$)/\1etcd-client-crt: '"$ETCD_CLIENT_CRT"'/' "$(pwd)/cilium.yaml"
+    for NODE in "${NODES[@]}"; do
+
+      NODE_IP="${NODE^^}_IP"
+      NODE_IP="${!NODE_IP}"
+      NODE_SSHKEY=$($DOCKER_MACHINE inspect "$NODE" -f '{{.Driver.SSHKeyPath}}')
+
+      case $OSTYPE in
+        msys*)
+          NODE_SSHKEY=$(echo "/$NODE_SSHKEY" | sed 's/\\/\//g' | sed 's/://')
+          ;;
+        *) ;;
+      esac
+
+      SSH_COMMAND="$SSH_OPTIONS $NODE_SSHKEY"
+
+      $SSH_COMMAND "$NODE_IP" "sudo tee $B2D_DIR/etc/kubernetes/cilium.conf >/dev/null" < "$(pwd)/cilium.conf"
+    done
+    $KUBECTL apply -f "$(pwd)/cilium.yaml"
     ;;
   start)
     if [ "$NODE_NAME" == "" ]; then
