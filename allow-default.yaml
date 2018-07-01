@@ -1,0 +1,84 @@
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "allow-to-kubedns"
+  namespace: default
+spec:
+  endpointSelector:
+    {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: '53'
+        protocol: UDP
+---
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "allow-to-asciinema-smtp"
+  namespace: default
+spec:
+  endpointSelector:
+    {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: asciinema
+        app: asciinema-backend
+    toPorts:
+    - ports:
+      - port: '25'
+        protocol: TCP
+---
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "allow-to-asciinema-nginx"
+  namespace: default
+spec:
+  endpointSelector:
+    {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: asciinema
+        app: asciinema-frontend
+    toPorts:
+    - ports:
+      - port: '80'
+        protocol: TCP
+---
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "allow-to-asciinema-redis"
+  namespace: default
+spec:
+  endpointSelector:
+    {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: asciinema
+        app: asciinema-backend
+    toPorts:
+    - ports:
+      - port: '6379'
+        protocol: TCP
+---
+apiVersion: "cilium.io/v2"
+kind: CiliumNetworkPolicy
+metadata:
+  name: "allow-to-world"
+  namespace: default
+spec:
+  endpointSelector:
+    {}
+  egress:
+    - toEntities:
+      - world
+
