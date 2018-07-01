@@ -19,7 +19,7 @@ spec:
       serviceAccountName: kube-router
       containers:
       - name: kube-router
-        image: andrewsykim/kube-router:cilium-2463
+        image: cloudnativelabs/kube-router:v0.2.0-beta.7
         imagePullPolicy: Always
         args:
         - "--run-router=true"
@@ -29,6 +29,7 @@ spec:
         - "--enable-ibgp=true"
         - "--enable-overlay=false"
         - "--cluster-asn=4200000001"
+        - "--enable-pod-egress=false"
         #- "--advertise-cluster-ip=true"
         #- "--advertise-external-ip=true"
         #- "--advertise-loadbalancer-ip=true"
