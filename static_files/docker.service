@@ -19,7 +19,7 @@ Environment=DOCKER_RAMDISK=yes
 # will catch this invalid input and refuse to start the service with an error like:
 #  Service has more than one ExecStart= setting, which is only allowed for Type=oneshot services.
 ExecStart=
-ExecStart=/usr/bin/dockerd -H tcp://0.0.0.0:2376 -H unix:///var/run/docker.sock --tlsverify --tlscacert /etc/docker/ca.pem --tlscert /etc/docker/server.pem --tlskey /etc/docker/server-key.pem --label provider=virtualbox --insecure-registry 10.96.0.0/12
+ExecStart=/usr/bin/dockerd -H tcp://0.0.0.0:2376 -H unix:///var/run/docker.sock --tlsverify --tlscacert /etc/docker/ca.pem --tlscert /etc/docker/server.pem --tlskey /etc/docker/server-key.pem --label provider=vmware --insecure-registry 10.96.0.0/12
 ExecReload=/bin/kill -s HUP
 
 # Having non-zero Limit*s causes performance problems due to accounting overhead
