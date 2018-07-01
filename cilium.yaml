@@ -28,6 +28,9 @@ data:
   debug: "false"
   disable-ipv4: "false"
   sidecar-http-proxy: "false"
+  tunnel: "disabled"
+  clean-cilium-state: "false"
+  legacy-host-allows-world: "false"
 ---
 # The etcd secrets can be populated in kubernetes.
 # For more information see: https://kubernetes.io/docs/concepts/configuration/secret
@@ -79,8 +82,25 @@ spec:
         prometheus.io/port: "9090"
     spec:
       serviceAccountName: cilium
+      initContainers:
+      - name: clean-cilium-state
+        image: docker.io/library/busybox:1.28.4
+        imagePullPolicy: IfNotPresent
+        command: ['sh', '-c', 'if [ "${CLEAN_CILIUM_STATE}" = "true" ]; then rm -rf /var/run/cilium/state; rm -rf /sys/fs/bpf/tc/globals/cilium_*; fi']
+        volumeMounts:
+          - name: bpf-maps
+            mountPath: /sys/fs/bpf
+          - name: cilium-run
+            mountPath: /var/run/cilium
+        env:
+          - name: "CLEAN_CILIUM_STATE"
+            valueFrom:
+              configMapKeyRef:
+                name: cilium-config
+                optional: true
+                key: clean-cilium-state
       containers:
-      - image: cilium/cilium:v1.0.4
+      - image: cilium/cilium:no-routes
         imagePullPolicy: Always
         name: cilium-agent
         command: [ "cilium-agent" ]
@@ -89,9 +109,11 @@ spec:
           - "--kvstore=etcd"
           - "--kvstore-opt=etcd.config=/var/lib/etcd-config/etcd.config"
           - "--disable-ipv4=$(DISABLE_IPV4)"
-          - "--device=eth0"
-          - "--tunnel=disabled"
+          - "--ipv4-cluster-cidr-mask-size=16"
+          #- "--tunnel=disabled"
           #- "--lb=eth0"
+          #- "--device=eth0"
+          #- "--tunnel=disabled"
           #- "-t=vxlan"
           #- "--k8s-kubeconfig-path=/etc/kubernetes/cilium.conf"
         ports:
@@ -135,6 +157,18 @@ spec:
                 name: cilium-metrics-config
                 optional: true
                 key: prometheus-serve-addr
+          - name: "CILIUM_LEGACY_HOST_ALLOWS_WORLD"
+            valueFrom:
+              configMapKeyRef:
+                name: cilium-config
+                optional: true
+                key: legacy-host-allows-world
+          - name: CILIUM_TUNNEL
+            valueFrom:
+              configMapKeyRef:
+                name: cilium-config
+                optional: true
+                key: tunnel
         livenessProbe:
           exec:
             command:
