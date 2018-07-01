@@ -44,9 +44,9 @@ data:
   # ETCD-CERT: Each value should contain the whole certificate in base64, on a
   # single line. You can generate the base64 with: $ base64 -w 0 ./ca.pem
   # (the "-w 0" generates the output on a single line)
-  etcd-ca: LS0tLS1CRUdJTiBD
-  etcd-client-key: LS0tLS1CRUdJTiBSU0EgUF
-  etcd-client-crt: LS0tLS1CRUdJTiBDRVJUS
+  etcd-ca: LS0tLS1CRUdJTiBDx
+  etcd-client-key: LS0tLS1CRUdJTiBSU0Eg
+  etcd-client-crt: LS0tLS1CRUdJTiBDRVJU
 ---
 kind: DaemonSet
 apiVersion: apps/v1
