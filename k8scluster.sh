@@ -6,9 +6,9 @@ set -o pipefail
 set -o nounset
 #IFS=$'\n\t'
 
-NODES=("master" "worker01")
-K8S_VERSION="v1.10.0"
-ISO_VERSION="v0.26.0"
+NODES=("master" "worker01" "worker02" "worker03")
+K8S_VERSION="v1.10.3"
+ISO_VERSION="v0.28.0_4.14.51"
 MASTER_ROLE="MASTER"
 MASTER_MEMORY="8192"
 MASTER_CPU="2"
@@ -16,14 +16,18 @@ MASTER_DISKSIZE="15000"
 MASTER_IP="192.168.88.50"
 MASTER_IP_NAT="10.0.2.50"
 WORKER01_ROLE="WORKER"
+WORKER02_ROLE="WORKER"
+WORKER03_ROLE="WORKER"
 WORKER_MEMORY="2048"
 WORKER_CPU="1"
 WORKER_DISKSIZE="10000"
 WORKER01_IP="192.168.88.51"
 WORKER01_IP_NAT="10.0.2.51"
+WORKER02_IP="192.168.88.52"
+WORKER02_IP_NAT="10.0.2.52"
+WORKER03_IP="192.168.88.53"
+WORKER03_IP_NAT="10.0.2.53"
 GATEWAY_NAT="10.0.2.2"
-BROADCAST="192.168.99.255"
-BROADCAST_NAT="10.0.2.255"
 SSH_USER="docker"
 SSH_OPTIONS="ssh -o LogLevel=error -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -l docker -i"
 SCP_OPTIONS="scp -o LogLevel=error -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i"
