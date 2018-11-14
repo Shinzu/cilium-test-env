@@ -7,10 +7,10 @@ set -o nounset
 #IFS=$'\n\t'
 
 NODES=("master" "worker01" "worker02" "worker03")
-K8S_VERSION="v1.10.3"
-ISO_VERSION="v0.28.0_4.14.51"
+K8S_VERSION="v1.11.4"
+ISO_VERSION="v0.30.0_4.18.16"
 MASTER_ROLE="MASTER"
-MASTER_MEMORY="8192"
+MASTER_MEMORY="4096"
 MASTER_CPU="2"
 MASTER_DISKSIZE="15000"
 MASTER_IP="192.168.88.50"
@@ -18,9 +18,9 @@ MASTER_IP_NAT="10.0.2.50"
 WORKER01_ROLE="WORKER"
 WORKER02_ROLE="WORKER"
 WORKER03_ROLE="WORKER"
-WORKER_MEMORY="2048"
-WORKER_CPU="1"
-WORKER_DISKSIZE="10000"
+WORKER_MEMORY="5120"
+WORKER_CPU="2"
+WORKER_DISKSIZE="15000"
 WORKER01_IP="192.168.88.51"
 WORKER01_IP_NAT="10.0.2.51"
 WORKER02_IP="192.168.88.52"
@@ -140,6 +140,7 @@ deploy_node() {
   # VBoxManage.exe natnetwork start --netname NatNetwork
 
   while true; do
+    fp "Test if Partitions are created" "info"
     MOUNT_RDY=$($SSH_COMMAND "$DHCP_IP" "mount -l | grep boot2docker | grep /dev/sda1" || :)
     if [[ ! -z $MOUNT_RDY ]]; then
       break
@@ -192,6 +193,8 @@ ExecStart=/usr/bin/kubelet --client-ca-file=/var/lib/localkube/certs/ca.crt \
     --fail-swap-on=false \
     --kubeconfig=/etc/kubernetes/kubelet.conf \
     --network-plugin=cni \
+    --authorization-mode=Webhook \
+    --authentication-token-webhook=true \
     --feature-gates=CustomResourceValidation=true
 
 [Install]
@@ -214,6 +217,8 @@ ExecStart=/usr/bin/kubelet --client-ca-file=/etc/kubernetes/pki/ca.crt \
     --fail-swap-on=false \
     --kubeconfig=/etc/kubernetes/kubelet.conf \
     --network-plugin=cni \
+    --authorization-mode=Webhook \
+    --authentication-token-webhook=true \
     --feature-gates=CustomResourceValidation=true \
     --node-labels 'node-role.kubernetes.io/node='
 
@@ -251,6 +256,14 @@ fi
 sleep 1
 done
 
+# workaraound for bug in VMware nat implementation
+if grep -Fxq "IPQoS lowdelay throughput" /etc/ssh/sshd_config
+then
+  break
+else
+  echo "IPQoS lowdelay throughput" >> /etc/ssh/sshd_config  
+fi
+
 # wait a bit so that docker-machine recognize that the node is up in case of e restart
 sleep 5
 
@@ -284,6 +297,9 @@ sed -i 's/mkdir/\/bin\/mkdir/g' /lib/systemd/system/crio-shutdown.service
 mkdir -p /mnt/sda1/var/lib/crio
 mkdir -p /var/lib/crio
 mount --bind /mnt/sda1/var/lib/crio /var/lib/crio
+mkdir -p /mnt/sda1/var/lib/localkube
+mkdir -p /var/lib/localkube
+mount --bind /mnt/sda1/var/lib/localkube /var/lib/localkube
 mkdir -p /data/storage
 mkdir -p /data/asciinema
 /usr/bin/vmhgfs-fuse .host:/Storage/$NODE /data/storage -o subtype=vmhgfs-fuse,allow_other
@@ -296,7 +312,7 @@ mount bpffs /sys/fs/bpf -t bpf
 systemctl daemon-reload
 systemctl enable docker.service
 systemctl enable kubelet.service
-(sleep 10 ; systemctl restart systemd-networkd ; systemctl restart crio.service ; systemctl start docker.service ; systemctl start kubelet.service) &
+(sleep 10 ; systemctl restart systemd-networkd ; systemctl restart crio.service ; systemctl start docker.service ; systemctl start kubelet.service ; systemctl restart sshd) &
 EOF
 
   $SSH_COMMAND "$DHCP_IP" "sudo $B2D_DIR/bootlocal.sh > /tmp/bootlocal.log 2>&1 &" || :
@@ -309,8 +325,8 @@ EOF
       fi
       sleep 1
     done
-    cat <<EOF | $SSH_COMMAND "$NODE_IP_NAT" "sudo tee /var/lib/kubeadm.yaml >/dev/null"
-apiVersion: kubeadm.k8s.io/v1alpha1
+    cat <<EOF | $SSH_COMMAND "$NODE_IP_NAT" "sudo tee /var/lib/boot2docker/kubeadm.yaml >/dev/null"
+apiVersion: kubeadm.k8s.io/v1alpha2
 kind: MasterConfiguration
 api:
   advertiseAddress: $NODE_IP_NAT
@@ -321,29 +337,31 @@ featureGates:
 certificatesDir: /var/lib/localkube/certs/
 networking:
   serviceSubnet: 10.96.0.0/12
+  dnsDomain: cluster.local
 etcd:
-  dataDir: /data
-  ServerCertSANs: [$NODE_IP, $NODE_IP_NAT]
-  extraArgs:
-    listen-client-urls: "https://127.0.0.1:2379,https://$NODE_IP_NAT:2379"
-    advertise-client-urls: "https://127.0.0.1:2379,https://$NODE_IP_NAT:2379"
+  local:
+    dataDir: /data
 nodeName: $NODE
 apiServerExtraArgs:
-  admission-control: "Initializers,NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultStorageClass,DefaultTolerationSeconds,NodeRestriction,MutatingAdmissionWebhook,ValidatingAdmissionWebhook,ResourceQuota"
+  enable-admission-plugins: "Initializers,NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultStorageClass,DefaultTolerationSeconds,NodeRestriction,MutatingAdmissionWebhook,ValidatingAdmissionWebhook,ResourceQuota"
   feature-gates: "CustomResourceValidation=true"
 controllerManagerExtraArgs:
   allocate-node-cidrs: "true"
   cluster-cidr: "10.2.0.0/16"
+  bind-address: "0.0.0.0"
+  address: "0.0.0.0"
   feature-gates: "CustomResourceValidation=true"
 schedulerExtraArgs:
+  address: "0.0.0.0"
   feature-gates: "CustomResourceValidation=true"
 apiServerCertSANs:
 - "$NODE_IP"
 - "127.0.0.1"
+- "192.168.1.141"
 EOF
 
     # bootstrap k8s with kubeadm
-    $SSH_COMMAND "$NODE_IP_NAT" "sudo /usr/bin/kubeadm init --config /var/lib/kubeadm.yaml \
+    $SSH_COMMAND "$NODE_IP_NAT" "sudo /usr/bin/kubeadm init --config /var/lib/boot2docker/kubeadm.yaml \
                 --ignore-preflight-errors=DirAvailable--etc-kubernetes-manifests \
                 --ignore-preflight-errors=DirAvailable--data \
                 --ignore-preflight-errors=FileAvailable--etc-kubernetes-manifests-kube-scheduler.yaml \

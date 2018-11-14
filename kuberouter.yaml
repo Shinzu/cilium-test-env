@@ -19,7 +19,7 @@ spec:
       serviceAccountName: kube-router
       containers:
       - name: kube-router
-        image: cloudnativelabs/kube-router:v0.2.0-beta.7
+        image: cloudnativelabs/kube-router:v0.2.1
         imagePullPolicy: Always
         args:
         - "--run-router=true"

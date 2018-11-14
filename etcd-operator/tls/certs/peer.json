@@ -1,0 +1,19 @@
+{
+    "CN": "etcd peer",
+    "hosts": [
+        "*.cilium-etcd.kube-system.svc",
+        "*.cilium-etcd.kube-system.svc.cluster.local"
+    ],
+    "key": {
+        "algo": "rsa",
+        "size": 2048
+    },
+    "names": [
+        {
+            "C": "DE",
+            "L": "Berlin",
+            "ST": "Berlin"
+        }
+    ]
+}
+

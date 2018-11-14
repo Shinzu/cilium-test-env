@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: busybox
+  namespace: default
+spec:
+  containers:
+  - name: busybox
+    image: busybox:1.28.4
+    command:
+      - sleep
+      - "3600"
+    imagePullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 50m
+        memory: 100Mi
+      requests:
+        cpu: 50m
+        memory: 100Mi
+    #    volumeMounts:
+    #    - name: etcd-secrets
+    #      mountPath: /var/lib/etcd-secrets
+    #  volumes:
+    #  - name: etcd-secrets
+    #    secret:
+    #      secretName: aws-iam-linus-kube-itr-aws-iam-controller
+  restartPolicy: Always
