@@ -19,7 +19,7 @@ spec:
       serviceAccountName: kube-router
       containers:
       - name: kube-router
-        image: cloudnativelabs/kube-router:v0.2.1
+        image: cloudnativelabs/kube-router:v0.2.3
         imagePullPolicy: Always
         args:
         - "--run-router=true"
@@ -56,9 +56,7 @@ spec:
       tolerations:
       - key: CriticalAddonsOnly
         operator: Exists
-      - effect: NoSchedule
-        key: node-role.kubernetes.io/master
-        operator: Exists
+      - operator: Exists
 
 ---
 apiVersion: v1

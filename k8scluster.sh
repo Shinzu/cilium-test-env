@@ -7,8 +7,8 @@ set -o nounset
 #IFS=$'\n\t'
 
 NODES=("master" "worker01" "worker02" "worker03")
-K8S_VERSION="v1.11.4"
-ISO_VERSION="v0.30.0_4.18.16"
+K8S_VERSION="v1.12.4"
+ISO_VERSION="v0.32.0_4.14.92"
 MASTER_ROLE="MASTER"
 MASTER_MEMORY="4096"
 MASTER_CPU="2"
@@ -180,51 +180,37 @@ deploy_node() {
   if [ "$NODE_ROLE" == "MASTER" ]; then
     cat <<EOF | $SSH_COMMAND "$DHCP_IP" "sudo tee $B2D_DIR/etc/systemd/system/kubelet.service.d/10-kubeadm.conf >/dev/null"
 [Service]
+[Service]
+Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
+Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml"
+Environment="KUBELET_SYSTEM_PODS_ARGS=--pod-manifest-path=/etc/kubernetes/manifests --allow-privileged=true"
+Environment="KUBELET_NETWORK_ARGS=--network-plugin=cni --cni-conf-dir=/etc/cni/net.d --cni-bin-dir=/opt/cni/bin"
+Environment="KUBELET_DNS_ARGS=--cluster-dns=10.96.0.10 --cluster-domain=cluster.local"
+Environment="KUBELET_AUTHZ_ARGS=--authorization-mode=Webhook --client-ca-file=/etc/kubernetes/pki/ca.crt"
+Environment="KUBELET_CADVISOR_ARGS="
+Environment="KUBELET_CERTIFICATE_ARGS=--rotate-certificates=true --cert-dir=/var/lib/kubelet/pki"
+Environment="KUBELET_CUSTOM_ARGS=--hostname-override=$NODE --feature-gates=CustomResourceValidation=true --volume-plugin-dir=/var/lib/kubelet/volumeplugins"
+EnvironmentFile=-/var/lib/kubelet/kubeadm-flags.env
+EnvironmentFile=-/etc/default/kubelet
 ExecStart=
-ExecStart=/usr/bin/kubelet --client-ca-file=/var/lib/localkube/certs/ca.crt \
-    --cgroup-driver=cgroupfs \
-    --hostname-override=$NODE \
-    --allow-privileged=true \
-    --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf \
-    --pod-manifest-path=/etc/kubernetes/manifests \
-    --cluster-dns=10.96.0.10 \
-    --cluster-domain=cluster.local \
-    --cadvisor-port=0 \
-    --fail-swap-on=false \
-    --kubeconfig=/etc/kubernetes/kubelet.conf \
-    --network-plugin=cni \
-    --authorization-mode=Webhook \
-    --authentication-token-webhook=true \
-    --feature-gates=CustomResourceValidation=true
-
-[Install]
-Wants=docker.socket
-WantedBy=multi-user.target
+ExecStart=/usr/bin/kubelet \$KUBELET_KUBECONFIG_ARGS \$KUBELET_CONFIG_ARGS \$KUBELET_SYSTEM_PODS_ARGS \$KUBELET_NETWORK_ARGS \$KUBELET_DNS_ARGS \$KUBELET_AUTHZ_ARGS \$KUBELET_CADVISOR_ARGS \$KUBELET_CERTIFICATE_ARGS \$KUBELET_CUSTOM_ARGS \$KUBELET_EXTRA_ARGS
 EOF
   else
     cat <<EOF | $SSH_COMMAND "$DHCP_IP" "sudo tee $B2D_DIR/etc/systemd/system/kubelet.service.d/10-kubeadm.conf >/dev/null"
 [Service]
+Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
+Environment="KUBELET_CONFIG_ARGS=--config=/var/lib/kubelet/config.yaml"
+Environment="KUBELET_SYSTEM_PODS_ARGS=--pod-manifest-path=/etc/kubernetes/manifests --allow-privileged=true"
+Environment="KUBELET_NETWORK_ARGS=--network-plugin=cni --cni-conf-dir=/etc/cni/net.d --cni-bin-dir=/opt/cni/bin"
+Environment="KUBELET_DNS_ARGS=--cluster-dns=10.96.0.10 --cluster-domain=cluster.local"
+Environment="KUBELET_AUTHZ_ARGS=--authorization-mode=Webhook --client-ca-file=/etc/kubernetes/pki/ca.crt"
+Environment="KUBELET_CADVISOR_ARGS="
+Environment="KUBELET_CERTIFICATE_ARGS=--rotate-certificates=true --cert-dir=/var/lib/kubelet/pki"
+Environment="KUBELET_CUSTOM_ARGS=--hostname-override=$NODE --feature-gates=CustomResourceValidation=true --volume-plugin-dir=/var/lib/kubelet/volumeplugins --node-labels 'node-role.kubernetes.io/node='"
+EnvironmentFile=-/var/lib/kubelet/kubeadm-flags.env
+EnvironmentFile=-/etc/default/kubelet
 ExecStart=
-ExecStart=/usr/bin/kubelet --client-ca-file=/etc/kubernetes/pki/ca.crt \
-    --cgroup-driver=cgroupfs \
-    --hostname-override=$NODE \
-    --allow-privileged=true \
-    --bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf \
-    --pod-manifest-path=/etc/kubernetes/manifests \
-    --cluster-dns=10.96.0.10 \
-    --cluster-domain=cluster.local \
-    --cadvisor-port=0 \
-    --fail-swap-on=false \
-    --kubeconfig=/etc/kubernetes/kubelet.conf \
-    --network-plugin=cni \
-    --authorization-mode=Webhook \
-    --authentication-token-webhook=true \
-    --feature-gates=CustomResourceValidation=true \
-    --node-labels 'node-role.kubernetes.io/node='
-
-[Install]
-Wants=docker.socket
-WantedBy=multi-user.target
+ExecStart=/usr/bin/kubelet \$KUBELET_KUBECONFIG_ARGS \$KUBELET_CONFIG_ARGS \$KUBELET_SYSTEM_PODS_ARGS \$KUBELET_NETWORK_ARGS \$KUBELET_DNS_ARGS \$KUBELET_AUTHZ_ARGS \$KUBELET_CADVISOR_ARGS \$KUBELET_CERTIFICATE_ARGS \$KUBELET_CUSTOM_ARGS \$KUBELET_EXTRA_ARGS
 EOF
   fi
 
@@ -300,10 +286,6 @@ mount --bind /mnt/sda1/var/lib/crio /var/lib/crio
 mkdir -p /mnt/sda1/var/lib/localkube
 mkdir -p /var/lib/localkube
 mount --bind /mnt/sda1/var/lib/localkube /var/lib/localkube
-mkdir -p /data/storage
-mkdir -p /data/asciinema
-/usr/bin/vmhgfs-fuse .host:/Storage/$NODE /data/storage -o subtype=vmhgfs-fuse,allow_other
-/usr/bin/vmhgfs-fuse .host:/Storage/asciinema /data/asciinema -o subtype=vmhgfs-fuse,allow_other
 
 # mount bpffs
 mount bpffs /sys/fs/bpf -t bpf
@@ -326,22 +308,27 @@ EOF
       sleep 1
     done
     cat <<EOF | $SSH_COMMAND "$NODE_IP_NAT" "sudo tee /var/lib/boot2docker/kubeadm.yaml >/dev/null"
-apiVersion: kubeadm.k8s.io/v1alpha2
-kind: MasterConfiguration
-api:
+apiVersion: kubeadm.k8s.io/v1alpha3
+kind: InitConfiguration
+nodeRegistration:
+  kubeletExtraArgs:
+    fail-swap-on: "false"
+apiEndpoint:
   advertiseAddress: $NODE_IP_NAT
   bindPort: 8443
+---
+apiVersion: kubeadm.k8s.io/v1alpha3
+kind: ClusterConfiguration
 kubernetesVersion: $K8S_VERSION
-featureGates:
-  CoreDNS: true
-certificatesDir: /var/lib/localkube/certs/
+nodeName: $NODE
+certificatesDir: "/etc/kubernetes/pki"
+controlPlaneEndpoint: $NODE_IP_NAT:8443
 networking:
   serviceSubnet: 10.96.0.0/12
   dnsDomain: cluster.local
 etcd:
   local:
     dataDir: /data
-nodeName: $NODE
 apiServerExtraArgs:
   enable-admission-plugins: "Initializers,NamespaceLifecycle,LimitRanger,ServiceAccount,DefaultStorageClass,DefaultTolerationSeconds,NodeRestriction,MutatingAdmissionWebhook,ValidatingAdmissionWebhook,ResourceQuota"
   feature-gates: "CustomResourceValidation=true"
@@ -358,6 +345,13 @@ apiServerCertSANs:
 - "$NODE_IP"
 - "127.0.0.1"
 - "192.168.1.141"
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+clusterDomain: "cluster.local"
+clusterDNS:
+- "10.0.96.10"
+failSwapOn: false
 EOF
 
     # bootstrap k8s with kubeadm
@@ -441,8 +435,8 @@ case $OPERATION in
 
     if [ -n "$DEPLOY_CILIUM" ]; then
       fp "Deploy cilium" "info"
-      $KUBECTL apply -f "$(pwd)/cilium-rbac.yaml"
-      sleep 3
+      #$KUBECTL apply -f "$(pwd)/cilium-rbac.yaml"
+      #sleep 3
       #SECRET=$($KUBECTL get sa cilium -n kube-system -o json | jq '.secrets[].name' | tr -d '"|\r' | while read -r TOKEN_NAME ; do $KUBECTL -n kube-system get secrets "$TOKEN_NAME" -o json ; done)
       #TOKEN=$(jq -j -r -n --argjson secret "$SECRET" '$secret.data.token' | base64 -d)
       #CA_CERT=$(jq -j -r -n --argjson secret "$SECRET" '$secret.data."ca.crt"')
@@ -455,10 +449,10 @@ case $OPERATION in
 
       SSH_COMMAND="$SSH_OPTIONS $NODE_SSHKEY"
 
-      rsync -r --rsync-path "sudo rsync" -e "$SSH_COMMAND" "$MASTER_IP_NAT:/var/lib/localkube/certs" "$PKI_ROOT/"
-      ETCD_CLIENT_CRT=$(base64 -w0 <"$PKI_ROOT/certs/apiserver-etcd-client.crt")
-      ETCD_CLIENT_KEY=$(base64 -w0 <"$PKI_ROOT/certs/apiserver-etcd-client.key")
-      ETCD_CA=$(base64 -w0 <"$PKI_ROOT/certs/etcd/ca.crt")
+      rsync -r --rsync-path "sudo rsync" -e "$SSH_COMMAND" "$MASTER_IP_NAT:/etc/kubernetes/pki" "$PKI_ROOT/"
+      ETCD_CLIENT_CRT=$(base64 -w0 <"$PKI_ROOT/pki/apiserver-etcd-client.crt")
+      ETCD_CLIENT_KEY=$(base64 -w0 <"$PKI_ROOT/pki/apiserver-etcd-client.key")
+      ETCD_CA=$(base64 -w0 <"$PKI_ROOT/pki/etcd/ca.crt")
       sed -ri 's/^(\s*)(etcd-ca:\s.*\s*$)/\1etcd-ca: '"$ETCD_CA"'/' "$(pwd)/cilium.yaml"
       sed -ri 's/^(\s*)(etcd-client-key:\s.*\s*$)/\1etcd-client-key: '"$ETCD_CLIENT_KEY"'/' "$(pwd)/cilium.yaml"
       sed -ri 's/^(\s*)(etcd-client-crt:\s.*\s*$)/\1etcd-client-crt: '"$ETCD_CLIENT_CRT"'/' "$(pwd)/cilium.yaml"
@@ -479,7 +473,7 @@ case $OPERATION in
 
       #  $SSH_COMMAND "$NODE_IP" "sudo tee $B2D_DIR/etc/kubernetes/cilium.conf >/dev/null" < "$(pwd)/cilium.conf"
       #done
-      $KUBECTL apply -f "$(pwd)/kuberouter.yaml"
+      #$KUBECTL apply -f "$(pwd)/kuberouter.yaml"
       #$KUBECTL apply -f "$(pwd)/cilium.yaml"
     else
       fp "Deploy Flannel" "info"
